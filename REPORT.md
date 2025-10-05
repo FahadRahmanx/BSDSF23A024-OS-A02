@@ -1,0 +1,5 @@
+Q1. What is the crucial difference between the stat() and lstat() system calls? In the context of the ls command, when is it more appropriate to use lstat()?
+The main difference between stat() and lstat() is that stat() retrieves information about the actual file a symbolic link points to, whereas lstat() provides details about the link itself. In the ls command, lstat() is preferred when displaying information about symbolic links without following them, ensuring they appear as separate entities rather than as their target files
+
+Q2. The st_mode field in struct stat is an integer that contains both the file type (e.g., regular file, directory) and the permission bits. Explain how you can use bitwise operators (like &) and predefined macros (like S_IFDIR or S_IRUSR) to extract this information.
+The st_mode field in struct stat combines both file type and permission data. Using bitwise operators and predefined macros like S_IFDIR or S_IRUSR, specific attributes can be extracted to identify the file type and access permissions. This enables commands like ls -l to correctly interpret and display each file’s type and permission settings
