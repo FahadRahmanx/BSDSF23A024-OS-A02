@@ -3,3 +3,9 @@ The main difference between stat() and lstat() is that stat() retrieves informat
 
 Q2. The st_mode field in struct stat is an integer that contains both the file type (e.g., regular file, directory) and the permission bits. Explain how you can use bitwise operators (like &) and predefined macros (like S_IFDIR or S_IRUSR) to extract this information.
 The st_mode field in struct stat combines both file type and permission data. Using bitwise operators and predefined macros like S_IFDIR or S_IRUSR, specific attributes can be extracted to identify the file type and access permissions. This enables commands like ls -l to correctly interpret and display each file’s type and permission settings
+
+Q3. Explain the general logic for printing items in a "down then across" columnar format. Why is a simple single loop through the list of filenames insufficient for this task?
+In a “down then across” format, filenames fill columns vertically before moving to the next column. A single loop can’t achieve this since it prints items in one line. Instead, nested loops are used, where each item’s position is calculated using col * num_rows + row to print files in properly aligned columns
+
+Q4. What is the purpose of the ioctl system call in this context? What would be the limitations of your program if you only used a fixed-width fallback (e.g., 80 columns) instead of detecting the terminal size?
+In this context, the ioctl system call is used to query the terminal for its current width, allowing the program to adjust the number of columns dynamically based on the actual screen size. This ensures filenames are displayed neatly and efficiently, without overflowing or leaving too much unused space. If the program relied only on a fixed-width fallback, it wouldn’t adapt to different terminal sizes  and on wider screens it would waste space, and on smaller ones, filenames could wrap or misalign
