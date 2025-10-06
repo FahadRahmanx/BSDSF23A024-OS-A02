@@ -1,11 +1,11 @@
 /*
-* Programming Assignment 02: lsv1.0.0
-* This is the source file of version 1.0.0
-* Read the write-up of the assignment to add the features to this base version
+* Programming Assignment 02: lsv1.2.0
+* This is the source file updated to include the -x flag (horizontal display)
 * Usage:
-*       $ lsv1.0.0 
-*       % lsv1.0.0  /home
-*       $ lsv1.0.0  /home/kali/   /etc/
+*       $ lsv1.2.0 
+*       $ lsv1.2.0 -l
+*       $ lsv1.2.0 -x
+*       $ lsv1.2.0 -x /home /etc
 */
 
 #include <stdio.h>
@@ -24,23 +24,30 @@ extern int errno;
 
 void do_ls(const char *dir);
 void do_ls_long(const char *dir);
+void do_ls_horizontal(const char *dir); // New function for -x
 void print_permissions(mode_t mode);
 int get_terminal_width(void);
+
+enum DisplayMode { DEFAULT_MODE, LONG_MODE, HORIZONTAL_MODE };
 
 int main(int argc, char const *argv[])
 {
     int opt;
-    int long_format = 0;
+    enum DisplayMode mode = DEFAULT_MODE;
 
-    while ((opt = getopt(argc, (char * const *)argv, "l")) != -1)
+    // Task 2: Extend argument parsing for -x
+    while ((opt = getopt(argc, (char * const *)argv, "lx")) != -1)
     {
         switch (opt)
         {
             case 'l':
-                long_format = 1;
+                mode = LONG_MODE;
+                break;
+            case 'x':
+                mode = HORIZONTAL_MODE;
                 break;
             default:
-                fprintf(stderr, "Usage: %s [-l] [directory...]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-l | -x] [directory...]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
@@ -48,8 +55,10 @@ int main(int argc, char const *argv[])
     // If no directory arguments, default to current directory
     if (optind == argc)
     {
-        if (long_format)
+        if (mode == LONG_MODE)
             do_ls_long(".");
+        else if (mode == HORIZONTAL_MODE)
+            do_ls_horizontal(".");
         else
             do_ls(".");
     }
@@ -58,8 +67,10 @@ int main(int argc, char const *argv[])
         for (int i = optind; i < argc; i++)
         {
             printf("Directory listing of %s : \n", argv[i]);
-            if (long_format)
+            if (mode == LONG_MODE)
                 do_ls_long(argv[i]);
+            else if (mode == HORIZONTAL_MODE)
+                do_ls_horizontal(argv[i]);
             else
                 do_ls(argv[i]);
             puts("");
@@ -69,6 +80,7 @@ int main(int argc, char const *argv[])
     return 0;
 }
 
+// Existing default "down then across" display
 void do_ls(const char *dir)
 {
     DIR *dp = opendir(dir);
@@ -100,7 +112,6 @@ void do_ls(const char *dir)
     if (file_count == 0)
         return;
 
-
     int term_width = get_terminal_width();
     int spacing = 2;
     int col_width = max_len + spacing;
@@ -124,6 +135,62 @@ void do_ls(const char *dir)
     free(filenames);
 }
 
+// Task 3: Implement horizontal display (-x)
+void do_ls_horizontal(const char *dir)
+{
+    DIR *dp = opendir(dir);
+    if (dp == NULL)
+    {
+        fprintf(stderr, "Cannot open directory : %s\n", dir);
+        return;
+    }
+
+    struct dirent *entry;
+    char **filenames = NULL;
+    int file_count = 0;
+    int max_len = 0;
+
+    while ((entry = readdir(dp)) != NULL)
+    {
+        if (entry->d_name[0] == '.')
+            continue;
+
+        filenames = realloc(filenames, sizeof(char *) * (file_count + 1));
+        filenames[file_count] = strdup(entry->d_name);
+        int len = strlen(entry->d_name);
+        if (len > max_len)
+            max_len = len;
+        file_count++;
+    }
+    closedir(dp);
+
+    if (file_count == 0)
+        return;
+
+    int term_width = get_terminal_width();
+    int spacing = 2;
+    int col_width = max_len + spacing;
+    int current_width = 0;
+
+    for (int i = 0; i < file_count; i++)
+    {
+        int next_width = current_width + col_width;
+        if (next_width > term_width)
+        {
+            printf("\n");
+            current_width = 0;
+        }
+        printf("%-*s", col_width, filenames[i]);
+        current_width += col_width;
+    }
+    printf("\n");
+
+    for (int i = 0; i < file_count; i++)
+        free(filenames[i]);
+    free(filenames);
+}
+
+// Unchanged long-listing function
 void do_ls_long(const char *dir)
 {
     struct dirent *entry;
