@@ -18,12 +18,14 @@
 #include <pwd.h>
 #include <grp.h>
 #include <time.h>
+#include <sys/ioctl.h>
 
 extern int errno;
 
 void do_ls(const char *dir);
 void do_ls_long(const char *dir);
 void print_permissions(mode_t mode);
+int get_terminal_width(void);
 
 int main(int argc, char const *argv[])
 {
@@ -69,27 +71,57 @@ int main(int argc, char const *argv[])
 
 void do_ls(const char *dir)
 {
-    struct dirent *entry;
     DIR *dp = opendir(dir);
     if (dp == NULL)
     {
         fprintf(stderr, "Cannot open directory : %s\n", dir);
         return;
     }
-    errno = 0;
+
+    struct dirent *entry;
+    char **filenames = NULL;
+    int file_count = 0;
+    int max_len = 0;
+
     while ((entry = readdir(dp)) != NULL)
     {
         if (entry->d_name[0] == '.')
             continue;
-        printf("%s\n", entry->d_name);
-    }
 
-    if (errno != 0)
-    {
-        perror("readdir failed");
+        filenames = realloc(filenames, sizeof(char *) * (file_count + 1));
+        filenames[file_count] = strdup(entry->d_name);
+        int len = strlen(entry->d_name);
+        if (len > max_len)
+            max_len = len;
+        file_count++;
     }
-
     closedir(dp);
+
+    if (file_count == 0)
+        return;
+
+
+    int term_width = get_terminal_width();
+    int spacing = 2;
+    int col_width = max_len + spacing;
+    int num_cols = term_width / col_width;
+    if (num_cols < 1) num_cols = 1;
+    int num_rows = (file_count + num_cols - 1) / num_cols;
+
+    for (int row = 0; row < num_rows; row++)
+    {
+        for (int col = 0; col < num_cols; col++)
+        {
+            int idx = col * num_rows + row;
+            if (idx < file_count)
+                printf("%-*s", col_width, filenames[idx]);
+        }
+        printf("\n");
+    }
+
+    for (int i = 0; i < file_count; i++)
+        free(filenames[i]);
+    free(filenames);
 }
 
 void do_ls_long(const char *dir)
@@ -120,12 +152,9 @@ void do_ls_long(const char *dir)
     }
 
     if (errno != 0)
-    {
         perror("readdir failed");
-    }
 
     rewinddir(dp);
-
     printf("total %ld\n", total_blocks / 2);
 
     errno = 0;
@@ -145,7 +174,6 @@ void do_ls_long(const char *dir)
         }
 
         print_permissions(st.st_mode);
-
         printf(" %3ld ", (long)st.st_nlink);
 
         struct passwd *pw = getpwuid(st.st_uid);
@@ -166,31 +194,34 @@ void do_ls_long(const char *dir)
     }
 
     if (errno != 0)
-    {
         perror("readdir failed");
-    }
 
-    closedir(dp);}
+    closedir(dp);
+}
 
 void print_permissions(mode_t mode)
 {
-    // File type
     if (S_ISDIR(mode))  printf("d");
     else if (S_ISLNK(mode)) printf("l");
     else printf("-");
 
-    // Owner permissions
     printf((mode & S_IRUSR) ? "r" : "-");
     printf((mode & S_IWUSR) ? "w" : "-");
     printf((mode & S_IXUSR) ? "x" : "-");
 
-    // Group permissions
     printf((mode & S_IRGRP) ? "r" : "-");
     printf((mode & S_IWGRP) ? "w" : "-");
     printf((mode & S_IXGRP) ? "x" : "-");
 
-    // Others permissions
     printf((mode & S_IROTH) ? "r" : "-");
     printf((mode & S_IWOTH) ? "w" : "-");
     printf((mode & S_IXOTH) ? "x" : "-");
+}
+
+int get_terminal_width(void)
+{
+    struct winsize w;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1)
+        return 80; // default
+    return w.ws_col;
 }
