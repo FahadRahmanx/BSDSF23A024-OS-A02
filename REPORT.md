@@ -21,3 +21,9 @@ Reading all directory entries into memory is necessary because sorting requires 
 
 Q8. Explain the purpose and signature of the comparison function required by qsort(). How does it work, and why must it take const void * arguments?
 The comparison function in qsort defines how two elements are ordered during sorting. It returns a negative, zero, or positive value depending on whether the first element should come before, is equal to, or comes after the second. It uses const void * arguments because qsort is a generic function that can sort any data type, and these pointers must be cast to the correct type within the function. This approach makes the sorting mechanism flexible and reusable for different kinds of data
+
+Q9. How do ANSI escape codes work to produce color in a standard Linux terminal? Show the specific code sequence for printing text in green.
+ANSI escape codes control text color and style in Linux terminals by sending special sequences that the terminal interprets as formatting instructions. Each sequence begins with \033[ and ends with m, containing numbers that define colors or effects. For example, \033[0;32m sets the text color to green, and \033[0m resets it back to normal after printing
+
+Q10. To color an executable file, you need to check its permission bits. Explain which bits in the st_mode field you need to check to determine if a file is executable by the owner, group, or others.
+To identify if a file is executable, you check the execute permission bits in its st_mode field from the stat structure. Specifically, the bits S_IXUSR, S_IXGRP, and S_IXOTH represent execute permissions for the owner, group, and others, respectively. If any of these bits are set, it means the file is executable by that category of users
