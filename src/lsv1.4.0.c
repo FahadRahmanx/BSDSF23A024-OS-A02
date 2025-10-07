@@ -34,14 +34,12 @@ void do_ls_horizontal(const char *dir, int show_all);
 void print_permissions(mode_t mode);
 int get_terminal_width(void);
 
-// Comparison function for qsort
 int compare_filenames(const void *a, const void *b)
 {
     const char *fa = *(const char **)a;
     const char *fb = *(const char **)b;
-    return strcmp(fa, fb);
+    return strcasecmp(fa, fb);   
 }
-
 enum DisplayMode { DEFAULT_MODE, LONG_MODE, HORIZONTAL_MODE };
 
 int main(int argc, char const *argv[])
