@@ -3,9 +3,9 @@ SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
 
-TARGET = $(BIN_DIR)/lsv1.3.0
-SRC = $(SRC_DIR)/lsv1.3.0.c
-OBJ = $(OBJ_DIR)/lsv1.3.0.o
+TARGET = $(BIN_DIR)/lsv1.4.0
+SRC = $(SRC_DIR)/lsv1.4.0.c
+OBJ = $(OBJ_DIR)/lsv1.4.0.o
 
 .PHONY: all clean
 
