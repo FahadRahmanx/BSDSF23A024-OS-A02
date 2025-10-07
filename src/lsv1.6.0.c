@@ -1,18 +1,20 @@
 /*
-* Programming Assignment 02: lsv1.5.0
+* Programming Assignment 02: lsv1.6.0
 * Features:
 *   - Default vertical (down-then-across) display
 *   - -l : Long listing format
 *   - -x : Horizontal (across) display
 *   - -a : Include hidden files
+*   - -R : Recursive directory listing
 *   - Sorted output using qsort()
 *   - Colored output based on file type
 *
 * Usage examples:
-*       $ lsv1.5.0
-*       $ lsv1.5.0 -l
-*       $ lsv1.5.0 -x
-*       $ lsv1.5.0 -a -x /etc /home
+*       $ lsv1.6.0
+*       $ lsv1.6.0 -l
+*       $ lsv1.6.0 -x
+*       $ lsv1.6.0 -a -x /etc /home
+*       $ lsv1.6.0 -R /etc
 */
 
 #include <stdio.h>
@@ -31,10 +33,10 @@ extern int errno;
 
 /* ---------- [TASK 2: ANSI COLOR MACROS] ---------- */
 #define COLOR_RESET   "\033[0m"
-#define COLOR_BLUE    "\033[0;34m"
-#define COLOR_GREEN   "\033[0;32m"
-#define COLOR_RED     "\033[0;31m"
-#define COLOR_PINK    "\033[0;35m"
+#define COLOR_BLUE    "\033[1;34m"   // bold blue
+#define COLOR_GREEN   "\033[1;32m"   // bold green
+#define COLOR_RED     "\033[1;31m"   // bold red
+#define COLOR_PINK    "\033[1;35m"   // bold pink
 #define COLOR_REVERSE "\033[7m"
 
 /* ---------- Function Prototypes ---------- */
@@ -43,6 +45,7 @@ void do_ls_long(const char *dir, int show_all);
 void do_ls_horizontal(const char *dir, int show_all);
 void print_permissions(mode_t mode);
 int get_terminal_width(void);
+void print_colored_name(const char *dir, const char *name);
 
 /* ---------- [TASK 3 & 4: COLORING LOGIC] ---------- */
 void print_colored_name(const char *dir, const char *name) {
@@ -81,14 +84,18 @@ int compare_filenames(const void *a, const void *b)
 
 enum DisplayMode { DEFAULT_MODE, LONG_MODE, HORIZONTAL_MODE };
 
+/* ---------- Prototype for Recursive Function ---------- */
+void do_ls_recursive(const char *dir, int show_all, enum DisplayMode mode, int recursive_flag);
+
 int main(int argc, char const *argv[])
 {
     int opt;
     enum DisplayMode mode = DEFAULT_MODE;
     int show_all = 0;
+    int recursive_flag = 0; // [NEW FLAG for -R]
 
-    // Add -a option for hidden files
-    while ((opt = getopt(argc, (char * const *)argv, "lxa")) != -1)
+    // Add -a and -R option for hidden and recursive files
+    while ((opt = getopt(argc, (char * const *)argv, "lxaR")) != -1)
     {
         switch (opt)
         {
@@ -101,15 +108,20 @@ int main(int argc, char const *argv[])
             case 'a':
                 show_all = 1;
                 break;
+            case 'R':
+                recursive_flag = 1;
+                break;
             default:
-                fprintf(stderr, "Usage: %s [-l | -x] [-a] [directory...]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-l | -x] [-a] [-R] [directory...]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
 
     if (optind == argc)
     {
-        if (mode == LONG_MODE)
+        if (recursive_flag)
+            do_ls_recursive(".", show_all, mode, recursive_flag);
+        else if (mode == LONG_MODE)
             do_ls_long(".", show_all);
         else if (mode == HORIZONTAL_MODE)
             do_ls_horizontal(".", show_all);
@@ -120,21 +132,26 @@ int main(int argc, char const *argv[])
     {
         for (int i = optind; i < argc; i++)
         {
-            printf("Directory listing of %s : \n", argv[i]);
-            if (mode == LONG_MODE)
-                do_ls_long(argv[i], show_all);
-            else if (mode == HORIZONTAL_MODE)
-                do_ls_horizontal(argv[i], show_all);
+            if (recursive_flag)
+                do_ls_recursive(argv[i], show_all, mode, recursive_flag);
             else
-                do_ls(argv[i], show_all);
-            puts("");
+            {
+                printf("Directory listing of %s : \n", argv[i]);
+                if (mode == LONG_MODE)
+                    do_ls_long(argv[i], show_all);
+                else if (mode == HORIZONTAL_MODE)
+                    do_ls_horizontal(argv[i], show_all);
+                else
+                    do_ls(argv[i], show_all);
+                puts("");
+            }
         }
     }
 
     return 0;
 }
 
-// Default (vertical / down-then-across)
+/* ---------- Default (vertical / down-then-across) ---------- */
 void do_ls(const char *dir, int show_all)
 {
     DIR *dp = opendir(dir);
@@ -195,7 +212,7 @@ void do_ls(const char *dir, int show_all)
     free(filenames);
 }
 
-// Horizontal (-x)
+/* ---------- Horizontal (-x) ---------- */
 void do_ls_horizontal(const char *dir, int show_all)
 {
     DIR *dp = opendir(dir);
@@ -254,7 +271,7 @@ void do_ls_horizontal(const char *dir, int show_all)
     free(filenames);
 }
 
-// Long-listing (-l)
+/* ---------- Long-listing (-l) ---------- */
 void do_ls_long(const char *dir, int show_all)
 {
     struct dirent *entry;
@@ -361,4 +378,60 @@ int get_terminal_width(void)
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1)
         return 80;
     return w.ws_col;
+}
+
+/* ---------- [NEW FUNCTION: Recursive Listing for -R] ---------- */
+void do_ls_recursive(const char *dir, int show_all, enum DisplayMode mode, int recursive_flag)
+{
+    printf("\n%s:\n", dir);
+
+    DIR *dp = opendir(dir);
+    if (dp == NULL)
+    {
+        fprintf(stderr, "Cannot open directory: %s\n", dir);
+        return;
+    }
+
+    struct dirent *entry;
+    char **filenames = NULL;
+    int file_count = 0;
+
+    while ((entry = readdir(dp)) != NULL)
+    {
+        if (!show_all && entry->d_name[0] == '.')
+            continue;
+
+        filenames = realloc(filenames, sizeof(char *) * (file_count + 1));
+        filenames[file_count++] = strdup(entry->d_name);
+    }
+    closedir(dp);
+
+    if (file_count == 0)
+        return;
+
+    qsort(filenames, file_count, sizeof(char *), compare_filenames);
+
+    // Use existing display logic
+    if (mode == LONG_MODE)
+        do_ls_long(dir, show_all);
+    else if (mode == HORIZONTAL_MODE)
+        do_ls_horizontal(dir, show_all);
+    else
+        do_ls(dir, show_all);
+
+    // Recursively visit subdirectories
+    for (int i = 0; i < file_count; i++)
+    {
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s", dir, filenames[i]);
+        struct stat st;
+        if (lstat(path, &st) == -1)
+            continue;
+
+        if (S_ISDIR(st.st_mode) && strcmp(filenames[i], ".") != 0 && strcmp(filenames[i], "..") != 0)
+            do_ls_recursive(path, show_all, mode, recursive_flag);
+
+        free(filenames[i]);
+    }
+    free(filenames);
 }
