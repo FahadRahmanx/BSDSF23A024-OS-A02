@@ -27,3 +27,9 @@ ANSI escape codes control text color and style in Linux terminals by sending spe
 
 Q10. To color an executable file, you need to check its permission bits. Explain which bits in the st_mode field you need to check to determine if a file is executable by the owner, group, or others.
 To identify if a file is executable, you check the execute permission bits in its st_mode field from the stat structure. Specifically, the bits S_IXUSR, S_IXGRP, and S_IXOTH represent execute permissions for the owner, group, and others, respectively. If any of these bits are set, it means the file is executable by that category of users
+
+Q11. In a recursive function, what is a "base case"? In the context of your recursive ls, what is the base case that stops the recursion from continuing forever?
+In a recursive function, the base case is the condition that stops further recursive calls, preventing infinite recursion. It defines the simplest scenario that can be solved directly without making another recursive call. In the context of a recursive ls command, the base case occurs when the function encounters a directory that contains no subdirectories (or when there are no more entries to process). At this point, the function simply lists the files in that directory and returns, stopping the recursion from continuing indefinitely
+
+Q12. Explain why it is essential to construct a full path (e.g., "parent_dir/subdir") before making a recursive call. What would happen if you simply called do_ls("subdir") from within the do_ls("parent_dir") function call?
+Constructing a full path such as "parent_dir/subdir" is essential in a recursive ls because it ensures the program accesses the correct directory within its parent. Without this, calling do_ls("subdir") would make the function look for "subdir" in the current working directory instead of inside "parent_dir", leading to errors, incorrect results, or infinite recursion if directory references become ambiguous
