@@ -1,11 +1,17 @@
 /*
-* Programming Assignment 02: lsv1.2.0
-* This is the source file updated to include the -x flag (horizontal display)
-* Usage:
-*       $ lsv1.2.0 
-*       $ lsv1.2.0 -l
-*       $ lsv1.2.0 -x
-*       $ lsv1.2.0 -x /home /etc
+* Programming Assignment 02: lsv1.4.0
+* Features:
+*   - Default vertical (down-then-across) display
+*   - -l : Long listing format
+*   - -x : Horizontal (across) display
+*   - -a : Include hidden files
+*   - Sorted output using qsort()
+*
+* Usage examples:
+*       $ lsv1.4.0
+*       $ lsv1.4.0 -l
+*       $ lsv1.4.0 -x
+*       $ lsv1.4.0 -a -x /etc /home
 */
 
 #include <stdio.h>
@@ -22,11 +28,19 @@
 
 extern int errno;
 
-void do_ls(const char *dir);
-void do_ls_long(const char *dir);
-void do_ls_horizontal(const char *dir); // New function for -x
+void do_ls(const char *dir, int show_all);
+void do_ls_long(const char *dir, int show_all);
+void do_ls_horizontal(const char *dir, int show_all);
 void print_permissions(mode_t mode);
 int get_terminal_width(void);
+
+// Comparison function for qsort
+int compare_filenames(const void *a, const void *b)
+{
+    const char *fa = *(const char **)a;
+    const char *fb = *(const char **)b;
+    return strcmp(fa, fb);
+}
 
 enum DisplayMode { DEFAULT_MODE, LONG_MODE, HORIZONTAL_MODE };
 
@@ -34,9 +48,10 @@ int main(int argc, char const *argv[])
 {
     int opt;
     enum DisplayMode mode = DEFAULT_MODE;
+    int show_all = 0;
 
-    // Task 2: Extend argument parsing for -x
-    while ((opt = getopt(argc, (char * const *)argv, "lx")) != -1)
+    // Add -a option for hidden files
+    while ((opt = getopt(argc, (char * const *)argv, "lxa")) != -1)
     {
         switch (opt)
         {
@@ -46,21 +61,23 @@ int main(int argc, char const *argv[])
             case 'x':
                 mode = HORIZONTAL_MODE;
                 break;
+            case 'a':
+                show_all = 1;
+                break;
             default:
-                fprintf(stderr, "Usage: %s [-l | -x] [directory...]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-l | -x] [-a] [directory...]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
 
-    // If no directory arguments, default to current directory
     if (optind == argc)
     {
         if (mode == LONG_MODE)
-            do_ls_long(".");
+            do_ls_long(".", show_all);
         else if (mode == HORIZONTAL_MODE)
-            do_ls_horizontal(".");
+            do_ls_horizontal(".", show_all);
         else
-            do_ls(".");
+            do_ls(".", show_all);
     }
     else
     {
@@ -68,11 +85,11 @@ int main(int argc, char const *argv[])
         {
             printf("Directory listing of %s : \n", argv[i]);
             if (mode == LONG_MODE)
-                do_ls_long(argv[i]);
+                do_ls_long(argv[i], show_all);
             else if (mode == HORIZONTAL_MODE)
-                do_ls_horizontal(argv[i]);
+                do_ls_horizontal(argv[i], show_all);
             else
-                do_ls(argv[i]);
+                do_ls(argv[i], show_all);
             puts("");
         }
     }
@@ -80,8 +97,8 @@ int main(int argc, char const *argv[])
     return 0;
 }
 
-// Existing default "down then across" display
-void do_ls(const char *dir)
+// Default (vertical / down-then-across)
+void do_ls(const char *dir, int show_all)
 {
     DIR *dp = opendir(dir);
     if (dp == NULL)
@@ -97,7 +114,7 @@ void do_ls(const char *dir)
 
     while ((entry = readdir(dp)) != NULL)
     {
-        if (entry->d_name[0] == '.')
+        if (!show_all && entry->d_name[0] == '.')
             continue;
 
         filenames = realloc(filenames, sizeof(char *) * (file_count + 1));
@@ -111,6 +128,8 @@ void do_ls(const char *dir)
 
     if (file_count == 0)
         return;
+
+    qsort(filenames, file_count, sizeof(char *), compare_filenames);
 
     int term_width = get_terminal_width();
     int spacing = 2;
@@ -135,8 +154,8 @@ void do_ls(const char *dir)
     free(filenames);
 }
 
-// Task 3: Implement horizontal display (-x)
-void do_ls_horizontal(const char *dir)
+// Horizontal (-x)
+void do_ls_horizontal(const char *dir, int show_all)
 {
     DIR *dp = opendir(dir);
     if (dp == NULL)
@@ -152,7 +171,7 @@ void do_ls_horizontal(const char *dir)
 
     while ((entry = readdir(dp)) != NULL)
     {
-        if (entry->d_name[0] == '.')
+        if (!show_all && entry->d_name[0] == '.')
             continue;
 
         filenames = realloc(filenames, sizeof(char *) * (file_count + 1));
@@ -166,6 +185,8 @@ void do_ls_horizontal(const char *dir)
 
     if (file_count == 0)
         return;
+
+    qsort(filenames, file_count, sizeof(char *), compare_filenames);
 
     int term_width = get_terminal_width();
     int spacing = 2;
@@ -190,8 +211,8 @@ void do_ls_horizontal(const char *dir)
     free(filenames);
 }
 
-// Unchanged long-listing function
-void do_ls_long(const char *dir)
+// Long-listing (-l)
+void do_ls_long(const char *dir, int show_all)
 {
     struct dirent *entry;
     DIR *dp = opendir(dir);
@@ -201,38 +222,42 @@ void do_ls_long(const char *dir)
         return;
     }
 
-    long total_blocks = 0;
-    errno = 0;
+    char **filenames = NULL;
+    int file_count = 0;
+
     while ((entry = readdir(dp)) != NULL)
     {
-        if (entry->d_name[0] == '.')
+        if (!show_all && entry->d_name[0] == '.')
             continue;
+        filenames = realloc(filenames, sizeof(char *) * (file_count + 1));
+        filenames[file_count++] = strdup(entry->d_name);
+    }
 
+    if (file_count == 0)
+    {
+        closedir(dp);
+        return;
+    }
+
+    qsort(filenames, file_count, sizeof(char *), compare_filenames);
+
+    long total_blocks = 0;
+    for (int i = 0; i < file_count; i++)
+    {
         char path[1024];
-        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-
+        snprintf(path, sizeof(path), "%s/%s", dir, filenames[i]);
         struct stat st;
         if (stat(path, &st) == -1)
             continue;
-
         total_blocks += st.st_blocks;
     }
 
-    if (errno != 0)
-        perror("readdir failed");
-
-    rewinddir(dp);
     printf("total %ld\n", total_blocks / 2);
 
-    errno = 0;
-    while ((entry = readdir(dp)) != NULL)
+    for (int i = 0; i < file_count; i++)
     {
-        if (entry->d_name[0] == '.')
-            continue;
-
         char path[1024];
-        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-
+        snprintf(path, sizeof(path), "%s/%s", dir, filenames[i]);
         struct stat st;
         if (stat(path, &st) == -1)
         {
@@ -257,11 +282,12 @@ void do_ls_long(const char *dir)
         strftime(timebuf, sizeof(timebuf), "%b %d %H:%M", tm_info);
         printf("%s ", timebuf);
 
-        printf("%s\n", entry->d_name);
+        printf("%s\n", filenames[i]);
     }
 
-    if (errno != 0)
-        perror("readdir failed");
+    for (int i = 0; i < file_count; i++)
+        free(filenames[i]);
+    free(filenames);
 
     closedir(dp);
 }
@@ -289,6 +315,6 @@ int get_terminal_width(void)
 {
     struct winsize w;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == -1)
-        return 80; // default
+        return 80;
     return w.ws_col;
 }
