@@ -1,17 +1,18 @@
 /*
-* Programming Assignment 02: lsv1.4.0
+* Programming Assignment 02: lsv1.5.0
 * Features:
 *   - Default vertical (down-then-across) display
 *   - -l : Long listing format
 *   - -x : Horizontal (across) display
 *   - -a : Include hidden files
 *   - Sorted output using qsort()
+*   - Colored output based on file type
 *
 * Usage examples:
-*       $ lsv1.4.0
-*       $ lsv1.4.0 -l
-*       $ lsv1.4.0 -x
-*       $ lsv1.4.0 -a -x /etc /home
+*       $ lsv1.5.0
+*       $ lsv1.5.0 -l
+*       $ lsv1.5.0 -x
+*       $ lsv1.5.0 -a -x /etc /home
 */
 
 #include <stdio.h>
@@ -28,18 +29,56 @@
 
 extern int errno;
 
+/* ---------- [TASK 2: ANSI COLOR MACROS] ---------- */
+#define COLOR_RESET   "\033[0m"
+#define COLOR_BLUE    "\033[0;34m"
+#define COLOR_GREEN   "\033[0;32m"
+#define COLOR_RED     "\033[0;31m"
+#define COLOR_PINK    "\033[0;35m"
+#define COLOR_REVERSE "\033[7m"
+
+/* ---------- Function Prototypes ---------- */
 void do_ls(const char *dir, int show_all);
 void do_ls_long(const char *dir, int show_all);
 void do_ls_horizontal(const char *dir, int show_all);
 void print_permissions(mode_t mode);
 int get_terminal_width(void);
 
+/* ---------- [TASK 3 & 4: COLORING LOGIC] ---------- */
+void print_colored_name(const char *dir, const char *name) {
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/%s", dir, name);
+
+    struct stat st;
+    if (lstat(path, &st) == -1) {
+        printf("%s", name);
+        return;
+    }
+
+    const char *color = COLOR_RESET;
+
+    if (S_ISDIR(st.st_mode))
+        color = COLOR_BLUE;
+    else if (S_ISLNK(st.st_mode))
+        color = COLOR_PINK;
+    else if (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode) || S_ISSOCK(st.st_mode))
+        color = COLOR_REVERSE;
+    else if (st.st_mode & S_IXUSR)
+        color = COLOR_GREEN;
+    else if (strstr(name, ".tar") || strstr(name, ".gz") || strstr(name, ".zip"))
+        color = COLOR_RED;
+
+    printf("%s%s%s", color, name, COLOR_RESET);
+}
+
+/* ---------- Comparison Function ---------- */
 int compare_filenames(const void *a, const void *b)
 {
     const char *fa = *(const char **)a;
     const char *fb = *(const char **)b;
     return strcasecmp(fa, fb);   
 }
+
 enum DisplayMode { DEFAULT_MODE, LONG_MODE, HORIZONTAL_MODE };
 
 int main(int argc, char const *argv[])
@@ -142,7 +181,11 @@ void do_ls(const char *dir, int show_all)
         {
             int idx = col * num_rows + row;
             if (idx < file_count)
-                printf("%-*s", col_width, filenames[idx]);
+            {
+                print_colored_name(dir, filenames[idx]);
+                int padding = col_width - (int)strlen(filenames[idx]);
+                for (int s = 0; s < padding; s++) printf(" ");
+            }
         }
         printf("\n");
     }
@@ -199,7 +242,9 @@ void do_ls_horizontal(const char *dir, int show_all)
             printf("\n");
             current_width = 0;
         }
-        printf("%-*s", col_width, filenames[i]);
+        print_colored_name(dir, filenames[i]);
+        int padding = col_width - (int)strlen(filenames[i]);
+        for (int s = 0; s < padding; s++) printf(" ");
         current_width += col_width;
     }
     printf("\n");
@@ -280,7 +325,8 @@ void do_ls_long(const char *dir, int show_all)
         strftime(timebuf, sizeof(timebuf), "%b %d %H:%M", tm_info);
         printf("%s ", timebuf);
 
-        printf("%s\n", filenames[i]);
+        print_colored_name(dir, filenames[i]);
+        printf("\n");
     }
 
     for (int i = 0; i < file_count; i++)
